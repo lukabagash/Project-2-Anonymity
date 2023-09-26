@@ -33,7 +33,7 @@ class Anonymization:
 
         self.utility_value -= 0.05
     
-    def generalize_level_2(self, k):
+    def generalize_level_2(self, k, l):
         """
         Level 2 Generalization: Adjust the Departure Date and Age based on k-anonymity requirements.
         """
@@ -56,26 +56,35 @@ class Anonymization:
             last_generalized_start_age = None
             prev_count = None
             while i < len(subset_groups):
-                if subset_groups.iloc[i]['count'] < k:
+                # Get the counts for each Flight Status within the subset group
+                flight_status_counts = group[(group['Departure Date'] == subset_groups.iloc[i]['Departure Date']) & 
+                                         (group['Age'] == subset_groups.iloc[i]['Age'])].groupby('Flight Status').size().to_dict()
+                total_count = subset_groups.iloc[i]['count']
+
+                # Check if the group meets the k-anonymity and l-diversity requirements
+                if total_count < k or any(flight_status_counts.get(status, 0) < l for status in ['Delayed', 'On Time', 'Cancelled']):
                     start_date = subset_groups.iloc[i]['Departure Date']
                     start_age = subset_groups.iloc[i]['Age']
                     end_date = start_date
                     end_age = start_age
-                    count = subset_groups.iloc[i]['count']
-
-                    # Keep adding records from the next groups until we have at least k records.
-                    while count < k and i < len(subset_groups) - 1:
+                    # Keep adding records from the next groups until we have at least k records and l-diversity.
+                    while (total_count < k or any(flight_status_counts.get(status, 0) < l for status in ['Delayed', 'On Time', 'Cancelled'])) and i < len(subset_groups) - 1:
                         i += 1
-                        count += subset_groups.iloc[i]['count']
+                        total_count += subset_groups.iloc[i]['count']
+                        next_flight_status_counts = group[(group['Departure Date'] == subset_groups.iloc[i]['Departure Date']) & 
+                                                          (group['Age'] == subset_groups.iloc[i]['Age'])].groupby('Flight Status').size().to_dict()
+                        for status in ['Delayed', 'On Time', 'Cancelled']:
+                            flight_status_counts[status] = flight_status_counts.get(status, 0) + next_flight_status_counts.get(status, 0)
+
                         end_date = subset_groups.iloc[i]['Departure Date']
                         end_age = subset_groups.iloc[i]['Age']
 
                     # If we're at the last subset group and it's less than k, merge with the previous group
-                    if i == len(subset_groups) - 1 and count < k:
+                    if i == len(subset_groups) - 1 and (total_count < k or any(flight_status_counts.get(status, 0) < l for status in ['Delayed', 'On Time', 'Cancelled'])):
                         if prev_count:
                             new_dates = new_dates[:-prev_count]
                             new_ages = new_ages[:-prev_count]
-                            count += prev_count
+                            total_count += prev_count
                         if last_generalized_start_date:
                             start_date = last_generalized_start_date
                         if last_generalized_start_age:
@@ -84,13 +93,13 @@ class Anonymization:
                         end_age = subset_groups.iloc[i]['Age']
 
                     # Set the new date and age range for the combined group.
-                    new_dates.extend([f"{start_date}--{end_date}"] * count)
-                    new_ages.extend([f"{start_age}--{end_age}"] * count)
+                    new_dates.extend([f"{start_date}--{end_date}"] * total_count)
+                    new_ages.extend([f"{min(start_age, end_age)}--{max(start_age, end_age)}"] * total_count)
                     last_generalized_start_date = start_date
                     last_generalized_start_age = start_age
-                    prev_count = count
+                    prev_count = total_count
                     # Calculate utility loss based on the difference in months
-                    if count >= k:
+                    if total_count >= k:
                         start_month = int(str(start_date).split('-')[1])
                         end_month = int(str(end_date).split('-')[1])
                         age_difference = end_age - start_age
@@ -112,7 +121,7 @@ class Anonymization:
         
 
 
-    def anonymize(self, k):
+    def anonymize(self, k, l):
         """
         Anonymize the data for a given k value.
         This is a placeholder and needs the actual anonymization logic.
@@ -128,11 +137,15 @@ class Anonymization:
 
         # Check k-anonymity after Level 1
         grouped = self.anonymized_data.groupby(['Gender', 'Airport Continent', 'Departure Date', 'Age'])
-        insufficient_groups = grouped.filter(lambda x: len(x) < k)
+        insufficient_groups_k = grouped.filter(lambda x: len(x) < k)
+
+        # Check l-diversity after Level 1
+        insufficient_groups_l = grouped.filter(lambda x: any(x.groupby('Flight Status').size() < l))
+
+        # If there are groups that don't meet the k-anonymity or l-diversity requirement, apply Level 2 Generalization
+        if not insufficient_groups_k.empty or not insufficient_groups_l.empty:
+            self.generalize_level_2(k,l)
         
-        # If there are groups that don't meet the k-anonymity requirement, apply Level 2 Generalization
-        if not insufficient_groups.empty:
-            self.generalize_level_2(k)
 
 
 
