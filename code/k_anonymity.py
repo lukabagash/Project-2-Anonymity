@@ -159,8 +159,38 @@ class Anonymization:
             print("Data has not been anonymized yet.")
 
 
-    def measure_utility(self):
+    # def measure_utility(self):
+    #     """
+    #     Return the utility of the anonymized data.
+    #     """
+    #     return round(self.utility_value, 2)
+
+    def calculate_probabilities(self, data, sensitive_attribute):
         """
-        Return the utility of the anonymized data.
+        Calculate the probability distribution of the sensitive attribute.
         """
-        return round(self.utility_value, 2)
+        # Assuming 'sensitive_attribute' is categorical (discrete)
+        probabilities = data[sensitive_attribute].value_counts(normalize=True)
+        return probabilities
+
+    def calculate_kl_divergence(self, p, q):
+        """
+        Calculate KL-divergence between two probability distributions p and q.
+        """
+        kl_divergence = np.sum(np.where(p != 0, p * np.log(p / q), 0))
+        return kl_divergence
+
+    def measure_utility(self, sensitive_attribute):
+      """
+      Calculate utility based on KL-divergence for the sensitive attribute.
+      """
+      original_probabilities = self.calculate_probabilities(self.data, sensitive_attribute)
+      anonymized_probabilities = self.calculate_probabilities(self.anonymized_data, sensitive_attribute)
+      # print("Original Probabilities:")
+      # print(original_probabilities)
+      # print("Anonymized Probabilities:")
+      # print(anonymized_probabilities)
+    
+      kl_divergence = self.calculate_kl_divergence(original_probabilities, anonymized_probabilities)
+
+      return kl_divergence
