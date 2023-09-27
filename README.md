@@ -2,7 +2,7 @@
 
 # Flight Data Anonymization and Utility Measurement
 
-This repository contains code for anonymizing flight data using k-anonymity and diversifying it using *l*-diversity, while also measuring the utility of the anonymized data. The project aims to balance the need for privacy protection with data utility in a flight dataset. 
+This repository contains code for anonymizing flight data using k-anonymity and diversifying it using l-diversity, while also measuring the utility of the anonymized data. The project aims to balance the need for privacy protection with data utility in a flight dataset. 
 
 ## Getting Started
 
@@ -29,7 +29,7 @@ Before you can start anonymizing the flight data, you need to obtain the dataset
 
 ### 2. Running the Anonymization Code
 
-To anonymize the flight data for different k-values & *l*-values, follow these steps:
+To anonymize the flight data for different k-values and l-values, follow these steps:
 
 1. Open the `k_anonymity_test.py` script.
 2. Set the `data_path` variable to the path of your flight dataset:
@@ -43,7 +43,7 @@ Run the `k_anonymity_test.py` script:
 python k_anonymity_test.py
 ```
 
-The script will perform k-anonymization for the specified k-values and save the anonymized datasets in the `data`/ directory with filenames like `anonymized_data_k_2.csv`, `anonymized_data_k_5.csv`, etc.
+The script will perform k-anonymization for the specified k and l values and save the anonymized datasets in the `data`/ directory.
 
 ### 3. Measuring Utility
 
