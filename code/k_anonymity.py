@@ -22,8 +22,8 @@ class Anonymization:
         """
         self.anonymized_data = self.data.drop(columns=columns_to_suppress, errors='ignore')
 
-        utility_loss = len(columns_to_suppress) * 0.01
-        self.utility_value -= utility_loss
+        # utility_loss = len(columns_to_suppress) * 0.01
+        # self.utility_value -= utility_loss
 
     def generalize_level_1(self):
         """
@@ -32,7 +32,7 @@ class Anonymization:
 
         self.anonymized_data['Departure Date'] = pd.to_datetime(self.data['Departure Date']).dt.to_period('M')
 
-        self.utility_value -= 0.05
+        #self.utility_value -= 0.05
     
     def generalize_level_2(self, k, l):
         """
@@ -43,7 +43,7 @@ class Anonymization:
 
         new_dates = []
         new_ages = []
-        utility_loss = 0
+        #utility_loss = 0
 
         for _, group in main_groups:
             # Sort the group by 'Departure Date' and then by 'Age'
@@ -99,15 +99,15 @@ class Anonymization:
                     last_generalized_start_date = start_date
                     last_generalized_start_age = start_age
                     prev_count = total_count
-                    # Calculate utility loss based on the difference in months
-                    if total_count >= k:
-                        start_month = int(str(start_date).split('-')[1])
-                        end_month = int(str(end_date).split('-')[1])
-                        age_difference = end_age - start_age
-                        utility_loss += age_difference/1700 * 0.0001
-                        month_difference = end_month - start_month
-                        utility_loss += month_difference/1700 * 0.001
-                        self.utility_value -= utility_loss
+                    # # Calculate utility loss based on the difference in months
+                    # if total_count >= k:
+                    #     start_month = int(str(start_date).split('-')[1])
+                    #     end_month = int(str(end_date).split('-')[1])
+                    #     age_difference = end_age - start_age
+                    #     utility_loss += age_difference/1700 * 0.0001
+                    #     month_difference = end_month - start_month
+                    #     utility_loss += month_difference/1700 * 0.001
+                    #     self.utility_value -= utility_loss
                 else:
                     new_dates.extend([subset_groups.iloc[i]['Departure Date']] * subset_groups.iloc[i]['count'])
                     new_ages.extend([str(subset_groups.iloc[i]['Age'])] * subset_groups.iloc[i]['count'])
@@ -160,38 +160,37 @@ class Anonymization:
             print("Data has not been anonymized yet.")
 
 
-    # def measure_utility(self):
-    #     """
-    #     Return the utility of the anonymized data.
-    #     """
-    #     return round(self.utility_value, 2)
 
-    def calculate_probabilities(self, data, sensitive_attribute):
-        """
-        Calculate the probability distribution of the sensitive attribute.
-        """
-        # Assuming 'sensitive_attribute' is categorical (discrete)
-        probabilities = data[sensitive_attribute].value_counts(normalize=True)
-        return probabilities
+    def measure_utility(self):
+        data = self.data
+        anonymized_data = self.anonymized_data
+        total_records = len(data)
+        kl_divergences = []
 
-    def calculate_kl_divergence(self, p, q):
-        """
-        Calculate KL-divergence between two probability distributions p and q.
-        """
-        kl_divergence = np.sum(np.where(p != 0, p * np.log(p / q), 0))
-        return kl_divergence
+        # Extract month from 'Departure Date' in the original data
+        data['Month'] = pd.to_datetime(data['Departure Date']).dt.month
 
-    def measure_utility(self, sensitive_attribute):
-      """
-      Calculate utility based on KL-divergence for the sensitive attribute.
-      """
-      original_probabilities = self.calculate_probabilities(self.data, sensitive_attribute)
-      anonymized_probabilities = self.calculate_probabilities(self.anonymized_data, sensitive_attribute)
-      # print("Original Probabilities:")
-      # print(original_probabilities)
-      # print("Anonymized Probabilities:")
-      # print(anonymized_probabilities)
-    
-      kl_divergence = self.calculate_kl_divergence(original_probabilities, anonymized_probabilities)
+        for index, row in data.iterrows():
+            # Calculate p(x) for the original data
+            subset_original = data[(data['Gender'] == row['Gender']) & (data['Airport Continent'] == row['Airport Continent'])]
+            p_x = len(subset_original[subset_original['Month'] == row['Month']]) / total_records
 
-      return kl_divergence
+            # Calculate panon(x) for the anonymized data
+            subset_anon = anonymized_data[(anonymized_data['Gender'] == row['Gender']) & (anonymized_data['Airport Continent'] == row['Airport Continent'])]
+            for date_range in subset_anon['Departure Date'].unique():
+                start_date, end_date = date_range.split('--')
+                start_year, start_month = map(int, start_date.split('-'))
+                end_year, end_month = map(int, end_date.split('-'))
+                if start_month <= row['Month'] <= end_month:
+                    month_range_size = end_month - start_month + 1
+                    eq_class_size = len(subset_anon[subset_anon['Departure Date'] == date_range])
+                    panon_x = (1 / total_records) * (1 / month_range_size) * eq_class_size
+                    break
+            else:
+                panon_x = 0
+
+            # Calculate KL-divergence for the current row
+            kl_divergence = p_x * np.log(p_x / panon_x) if p_x != 0 else 0
+            kl_divergences.append(kl_divergence)
+
+        return sum(kl_divergences)
